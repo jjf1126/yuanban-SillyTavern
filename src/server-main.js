@@ -90,6 +90,22 @@ if (!cliArgs.enableIPv6 && !cliArgs.enableIPv4) {
 }
 
 const app = express();
+
+
+// ✨ 为 UptimeRobot/Koyeb 添加的健康检查接口 ✨
+// 将此接口放在所有其他中间件之前，以确保它能快速响应且不会被安全策略拦截。
+app.get('/health', (req, res) => {
+  // 设置响应头，表明内容类型和禁止缓存
+  res.setHeader('Content-Type', 'text/plain');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  
+  // 返回 200 OK 状态和简单的文本 "OK"
+  res.status(200).send('OK');
+});
+
+
+
+
 app.use(helmet({
     contentSecurityPolicy: false,
 }));
