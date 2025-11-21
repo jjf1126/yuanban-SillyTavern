@@ -1,6 +1,6 @@
 import { ensureImageFormatSupported, getBase64Async, getFileExtension, isTrueBoolean, saveBase64AsFile } from '../../utils.js';
 import { getContext, getApiUrl, doExtrasFetch, extension_settings, modules, renderExtensionTemplateAsync } from '../../extensions.js';
-import { appendMediaToMessage, eventSource, event_types, getRequestHeaders, saveChatConditional, saveSettingsDebounced, substituteParamsExtended } from '../../../script.js';
+import { appendMediaToMessage, chat_metadata, eventSource, event_types, getRequestHeaders, saveChatConditional, saveSettingsDebounced, substituteParamsExtended } from '../../../script.js';
 import { getMessageTimeStamp } from '../../RossAscends-mods.js';
 import { SECRET_KEYS, secret_state } from '../../secrets.js';
 import { getMultimodalCaption } from '../shared.js';
@@ -174,6 +174,7 @@ async function sendCaptionedMessage(caption, image) {
             inline_image: !!extension_settings.caption.show_in_chat,
         },
     };
+    chat_metadata['tainted'] = true;
     context.chat.push(message);
     const messageId = context.chat.length - 1;
     await eventSource.emit(event_types.MESSAGE_SENT, messageId);
@@ -439,6 +440,8 @@ jQuery(async function () {
                         'cohere': SECRET_KEYS.COHERE,
                         'aimlapi': SECRET_KEYS.AIMLAPI,
                         'moonshot': SECRET_KEYS.MOONSHOT,
+                        'nanogpt': SECRET_KEYS.NANOGPT,
+                        'electronhub': SECRET_KEYS.ELECTRONHUB,
                     };
 
                     if (chatCompletionApis[api] && secret_state[chatCompletionApis[api]]) {
@@ -543,8 +546,12 @@ jQuery(async function () {
         }
 
         await processEndpoint('openrouter', '/api/openrouter/models/multimodal');
-        await processEndpoint('aimlapi', '/api/backends/chat-completions/aimlapi/models/multimodal');
-        await processEndpoint('pollinations', '/api/backends/chat-completions/pollinations/models/multimodal');
+        await processEndpoint('aimlapi', '/api/backends/chat-completions/multimodal-models/aimlapi');
+        await processEndpoint('pollinations', '/api/backends/chat-completions/multimodal-models/pollinations');
+        await processEndpoint('nanogpt', '/api/backends/chat-completions/multimodal-models/nanogpt');
+        await processEndpoint('electronhub', '/api/backends/chat-completions/multimodal-models/electronhub');
+        await processEndpoint('mistral', '/api/backends/chat-completions/multimodal-models/mistral');
+        await processEndpoint('xai', '/api/backends/chat-completions/multimodal-models/xai');
     }
 
     await addSettings();
@@ -588,10 +595,12 @@ jQuery(async function () {
         saveSettingsDebounced();
     });
     $('#caption_ollama_pull').on('click', (e) => {
-        const presetModel = extension_settings.caption.multimodal_model !== 'ollama_current' ? extension_settings.caption.multimodal_model : '';
+        const selectedModel = extension_settings.caption.multimodal_model;
+        const staticModels = { 'ollama_current': textgenerationwebui_settings.ollama_model, 'ollama_custom': extension_settings.caption.ollama_custom_model };
+        const presetModel = staticModels[selectedModel] || selectedModel;
         e.preventDefault();
         $('#ollama_download_model').trigger('click');
-        $('#dialogue_popup_input').val(presetModel);
+        $('.popup .popup-input').val(presetModel);
     });
     $('#caption_multimodal_api').on('change', async () => {
         const api = String($('#caption_multimodal_api').val());
@@ -614,6 +623,15 @@ jQuery(async function () {
     });
     $('#caption_show_in_chat').prop('checked', !!(extension_settings.caption.show_in_chat)).on('input', () => {
         extension_settings.caption.show_in_chat = !!$('#caption_show_in_chat').prop('checked');
+        saveSettingsDebounced();
+    });
+    $('#caption_ollama_custom_model').val(extension_settings.caption.ollama_custom_model || '').on('input', () => {
+        extension_settings.caption.ollama_custom_model = String($('#caption_ollama_custom_model').val()).trim();
+        saveSettingsDebounced();
+    });
+    $('#caption_refresh_models').on('click', async () => {
+        extension_settings.caption.multimodal_model = '';
+        await switchMultimodalBlocks();
         saveSettingsDebounced();
     });
 
